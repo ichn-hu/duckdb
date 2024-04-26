@@ -10,10 +10,10 @@
 
 #include "duckdb/common/common.hpp"
 #include "duckdb/common/numeric_utils.hpp"
-#include "duckdb/common/types/string_type.hpp"
 #include "duckdb/common/types/decimal.hpp"
-#include "duckdb/common/types/interval.hpp"
 #include "duckdb/common/types/hugeint.hpp"
+#include "duckdb/common/types/interval.hpp"
+#include "duckdb/common/types/string_type.hpp"
 #include "duckdb/common/types/uhugeint.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "fmt/format.h"
@@ -418,16 +418,16 @@ struct DateToStringCast {
 };
 
 struct TimeToStringCast {
-	//! Format microseconds to a buffer of length 6. Returns the number of trailing zeros
-	static int32_t FormatMicros(int32_t microseconds, char micro_buffer[]) {
-		char *endptr = micro_buffer + 6;
-		endptr = NumericHelper::FormatUnsigned<int32_t>(microseconds, endptr);
-		while (endptr > micro_buffer) {
+	//! Format trailing sub-seconds to a buffer of given length. Returns the number of trailing zeros.
+	static int32_t FormatTrailing(int32_t trailing, char buffer[], idx_t length) {
+		char *endptr = buffer + length;
+		endptr = NumericHelper::FormatUnsigned<int32_t>(trailing, endptr);
+		while (endptr > buffer) {
 			*--endptr = '0';
 		}
 		idx_t trailing_zeros = 0;
-		for (idx_t i = 5; i > 0; i--) {
-			if (micro_buffer[i] != '0') {
+		for (idx_t i = length - 1; i > 0; i--) {
+			if (buffer[i] != '0') {
 				break;
 			}
 			trailing_zeros++;
@@ -435,22 +435,31 @@ struct TimeToStringCast {
 		return UnsafeNumericCast<int32_t>(trailing_zeros);
 	}
 
-	static idx_t Length(int32_t time[], char micro_buffer[]) {
+	//! Format microseconds to a buffer of length 6. Returns the number of trailing zeros
+	static int32_t FormatMicros(int32_t microseconds, char micro_buffer[]) {
+		return FormatTrailing(microseconds, micro_buffer, 6);
+	}
+
+	static int32_t FormatNanos(int32_t nanoseconds, char nano_buffer[]) {
+		return FormatTrailing(nanoseconds, nano_buffer, 9);
+	}
+
+	static idx_t Length(int32_t time[], char buffer[], bool format_nano = false) {
 		// format is HH:MM:DD.MS
 		// microseconds come after the time with a period separator
 		idx_t length;
 		if (time[3] == 0) {
-			// no microseconds
+			// no microseconds or nanoseconds
 			// format is HH:MM:DD
 			length = 8;
 		} else {
-			length = 15;
+			length = 15 + (format_nano ? 3 : 0);
 			// for microseconds, we truncate any trailing zeros (i.e. "90000" becomes ".9")
 			// first write the microseconds to the microsecond buffer
 			// we write backwards and pad with zeros to the left
 			// now we figure out how many digits we need to include by looking backwards
 			// and checking how many zeros we encounter
-			length -= NumericCast<idx_t>(FormatMicros(time[3], micro_buffer));
+			length -= NumericCast<idx_t>(FormatTrailing(time[3], buffer, 6 + (format_nano ? 3 : 0)));
 		}
 		return length;
 	}

@@ -1,31 +1,31 @@
 #include "duckdb/common/operator/cast_operators.hpp"
-#include "duckdb/common/hugeint.hpp"
-#include "duckdb/common/operator/string_cast.hpp"
-#include "duckdb/common/operator/numeric_cast.hpp"
-#include "duckdb/common/operator/decimal_cast_operators.hpp"
-#include "duckdb/common/operator/multiply.hpp"
-#include "duckdb/common/operator/add.hpp"
-#include "duckdb/common/operator/subtract.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/hugeint.hpp"
 #include "duckdb/common/limits.hpp"
+#include "duckdb/common/operator/add.hpp"
+#include "duckdb/common/operator/decimal_cast_operators.hpp"
+#include "duckdb/common/operator/double_cast_operator.hpp"
+#include "duckdb/common/operator/integer_cast_operator.hpp"
+#include "duckdb/common/operator/multiply.hpp"
+#include "duckdb/common/operator/numeric_cast.hpp"
+#include "duckdb/common/operator/string_cast.hpp"
+#include "duckdb/common/operator/subtract.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/bit.hpp"
 #include "duckdb/common/types/blob.hpp"
 #include "duckdb/common/types/cast_helpers.hpp"
 #include "duckdb/common/types/date.hpp"
 #include "duckdb/common/types/decimal.hpp"
 #include "duckdb/common/types/hugeint.hpp"
-#include "duckdb/common/types/uuid.hpp"
 #include "duckdb/common/types/interval.hpp"
 #include "duckdb/common/types/time.hpp"
 #include "duckdb/common/types/timestamp.hpp"
+#include "duckdb/common/types/uuid.hpp"
 #include "duckdb/common/types/vector.hpp"
-#include "duckdb/common/types.hpp"
 #include "fast_float/fast_float.h"
 #include "fmt/format.h"
-#include "duckdb/common/types/bit.hpp"
-#include "duckdb/common/operator/integer_cast_operator.hpp"
-#include "duckdb/common/operator/double_cast_operator.hpp"
 
 #include <cctype>
 #include <cmath>
@@ -1126,7 +1126,9 @@ bool TryCast::Operation(interval_t input, interval_t &result, bool strict) {
 //===--------------------------------------------------------------------===//
 template <>
 duckdb::string_t CastFromTimestampNS::Operation(duckdb::timestamp_t input, Vector &result) {
-	return StringCast::Operation<timestamp_t>(CastTimestampNsToUs::Operation<timestamp_t, timestamp_t>(input), result);
+	duckdb::timestamp_ns_t ns;
+	ns.value = input.value;
+	return StringCast::Operation<timestamp_ns_t>(ns, result);
 }
 template <>
 duckdb::string_t CastFromTimestampMS::Operation(duckdb::timestamp_t input, Vector &result) {
@@ -1259,6 +1261,7 @@ dtime_t CastTimestampSecToTime::Operation(timestamp_t input) {
 //===--------------------------------------------------------------------===//
 template <>
 bool TryCastToTimestampNS::Operation(string_t input, timestamp_t &result, bool strict) {
+	// TODO(zhifeng): make it work for ns
 	if (!TryCast::Operation<string_t, timestamp_t>(input, result, strict)) {
 		return false;
 	}
@@ -1298,6 +1301,7 @@ bool TryCastToTimestampSec::Operation(string_t input, timestamp_t &result, bool 
 	return true;
 }
 
+// TODO: make it work for nanoseconds
 template <>
 bool TryCastToTimestampNS::Operation(date_t input, timestamp_t &result, bool strict) {
 	if (!TryCast::Operation<date_t, timestamp_t>(input, result, strict)) {

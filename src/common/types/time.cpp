@@ -1,13 +1,13 @@
 #include "duckdb/common/types/time.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/exception/conversion_exception.hpp"
+#include "duckdb/common/operator/multiply.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/types/cast_helpers.hpp"
 #include "duckdb/common/types/date.hpp"
 #include "duckdb/common/types/interval.hpp"
 #include "duckdb/common/types/timestamp.hpp"
-#include "duckdb/common/operator/multiply.hpp"
-#include "duckdb/common/exception/conversion_exception.hpp"
 
 #include <cctype>
 #include <cstring>
@@ -93,6 +93,7 @@ bool Time::TryConvertInternal(const char *buf, idx_t len, idx_t &pos, dtime_t &r
 		// we expect some microseconds
 		int32_t mult = 100000;
 		for (; pos < len && StringUtil::CharacterIsDigit(buf[pos]); pos++, mult /= 10) {
+			micros = micros * 10 + buf[pos] - '0';
 			if (mult > 0) {
 				micros += (buf[pos] - '0') * mult;
 			}

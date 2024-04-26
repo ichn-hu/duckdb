@@ -6,7 +6,7 @@
 
 namespace duckdb {
 
-//! Type used to represent time (microseconds)
+//! Type used to represent time (nanoseconds)
 struct dtime_t { // NOLINT
 	int64_t micros;
 

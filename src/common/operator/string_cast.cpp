@@ -1,12 +1,13 @@
-#include "duckdb/common/types/cast_helpers.hpp"
 #include "duckdb/common/operator/string_cast.hpp"
-#include "duckdb/common/types/vector.hpp"
+
+#include "duckdb/common/types/cast_helpers.hpp"
 #include "duckdb/common/types/date.hpp"
 #include "duckdb/common/types/decimal.hpp"
 #include "duckdb/common/types/hugeint.hpp"
 #include "duckdb/common/types/interval.hpp"
 #include "duckdb/common/types/time.hpp"
 #include "duckdb/common/types/timestamp.hpp"
+#include "duckdb/common/types/vector.hpp"
 
 namespace duckdb {
 
@@ -155,6 +156,45 @@ duckdb::string_t StringCast::Operation(timestamp_t input, Vector &vector) {
 	DateToStringCast::Format(data, date, year_length, add_bc);
 	data[date_length] = ' ';
 	TimeToStringCast::Format(data + date_length + 1, time_length, time, micro_buffer);
+
+	result.Finalize();
+	return result;
+}
+
+template <>
+duckdb::string_t StringCast::Operation(timestamp_ns_t input, Vector &vector) {
+	if (input == timestamp_t::infinity()) {
+		return StringVector::AddString(vector, Date::PINF);
+	} else if (input == timestamp_t::ninfinity()) {
+		return StringVector::AddString(vector, Date::NINF);
+	}
+
+	timestamp_t timestamp_us = Timestamp::FromEpochNanoSeconds(input.value);
+
+	date_t date_entry;
+	dtime_t time_entry;
+	Timestamp::Convert(timestamp_us, date_entry, time_entry);
+
+	int32_t date[3], time[4];
+	Date::Convert(date_entry, date[0], date[1], date[2]);
+	Time::Convert(time_entry, time[0], time[1], time[2], time[3]);
+
+	time[3] = time[3] * 1000 + (input.value - timestamp_us.value * Interval::NANOS_PER_MICRO);
+
+	// format for timestamp is DATE TIME (separated by space)
+	idx_t year_length;
+	bool add_bc;
+	char nano_buffer[9];
+	idx_t date_length = DateToStringCast::Length(date, year_length, add_bc);
+	idx_t time_length = TimeToStringCast::Length(time, nano_buffer, true);
+	idx_t length = date_length + time_length + 1;
+
+	string_t result = StringVector::EmptyString(vector, length);
+	auto data = result.GetDataWriteable();
+
+	DateToStringCast::Format(data, date, year_length, add_bc);
+	data[date_length] = ' ';
+	TimeToStringCast::Format(data + date_length + 1, time_length, time, nano_buffer);
 
 	result.Finalize();
 	return result;
